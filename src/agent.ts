@@ -16,18 +16,18 @@ import { flow } from "@ax-llm/ax";
  *   - PRIVATE_KEY      (used for x402 payments)
  */
 
-const configOverrides: AgentKitConfig = {
-  payments: {
-    facilitatorUrl:
-      (process.env.FACILITATOR_URL as any) ??
-      "https://facilitator.daydreams.systems",
-    payTo:
-      (process.env.PAY_TO as `0x${string}`) ??
-      "0xb308ed39d67D0d4BAe5BC2FAEF60c66BBb6AE429",
-    network: (process.env.NETWORK as any) ?? "base",
-    defaultPrice: process.env.DEFAULT_PRICE ?? "1000",
-  },
+const paymentsConfig: NonNullable<AgentKitConfig["payments"]> = {
+  facilitatorUrl:
+    (process.env.FACILITATOR_URL as any) ??
+    "https://facilitator.daydreams.systems",
+  payTo:
+    (process.env.PAY_TO as `0x${string}`) ??
+    "0xb308ed39d67D0d4BAe5BC2FAEF60c66BBb6AE429",
+  network: (process.env.NETWORK as any) ?? "base",
+  defaultPrice: process.env.DEFAULT_PRICE ?? "1000",
 };
+
+const paymentsEnabled = process.env.ENABLE_PAYMENTS === "true";
 
 const axClient = createAxLLMClient({
   logger: {
@@ -54,18 +54,125 @@ const { app, addEntrypoint } = createAgentApp(
     description:
       "Fetch the latest USD conversion rates for five globally traded currencies: EUR, CNY, JPY, GBP, and AUD.",
   },
-  {
-    config: configOverrides,
-  }
+  paymentsEnabled
+    ? {
+        config: {
+          payments: paymentsConfig,
+        },
+      }
+    : {
+        payments: false,
+      }
 );
 
 const TOP_CURRENCIES = ["EUR", "CNY", "JPY", "GBP", "AUD"] as const;
+
+type RatesResult = {
+  rates: Record<string, number>;
+  updatedAt?: string;
+  provider: string;
+};
+
+async function fetchUsdRates(): Promise<RatesResult> {
+  try {
+    return await fetchFromOpenErApi();
+  } catch (primaryError) {
+    const primaryMessage =
+      primaryError instanceof Error
+        ? primaryError.message
+        : String(primaryError);
+    console.warn(
+      `[usd-conversions] primary rates provider failed: ${primaryMessage}`
+    );
+
+    try {
+      return await fetchFromJsDelivr();
+    } catch (fallbackError) {
+      const fallbackMessage =
+        fallbackError instanceof Error
+          ? fallbackError.message
+          : String(fallbackError);
+      throw new Error(
+        `Unable to fetch USD conversion rates from available providers (primary: ${primaryMessage}; fallback: ${fallbackMessage}).`
+      );
+    }
+  }
+}
+
+async function fetchFromOpenErApi(): Promise<RatesResult> {
+  const response = await fetch("https://open.er-api.com/v6/latest/USD");
+  const payload = (await response.json()) as {
+    result?: string;
+    rates?: Record<string, number>;
+    time_last_update_utc?: string;
+  };
+
+  if (!response.ok) {
+    throw new Error(
+      `open.er-api responded with unexpected status ${response.status}.`
+    );
+  }
+
+  if (payload.result !== "success" || !payload.rates) {
+    throw new Error("open.er-api response did not contain USD rate data.");
+  }
+
+  const rates: Record<string, number> = {};
+  for (const currency of TOP_CURRENCIES) {
+    const rate = payload.rates[currency];
+    if (typeof rate !== "number" || Number.isNaN(rate)) {
+      throw new Error(`open.er-api missing rate for ${currency}.`);
+    }
+    rates[currency] = rate;
+  }
+
+  return {
+    rates,
+    updatedAt: payload.time_last_update_utc,
+    provider: "open.er-api",
+  };
+}
+
+async function fetchFromJsDelivr(): Promise<RatesResult> {
+  const response = await fetch(
+    "https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1/latest/currencies/usd.json"
+  );
+  const payload = (await response.json()) as {
+    date?: string;
+    usd?: Record<string, number>;
+  };
+
+  if (!response.ok) {
+    throw new Error(
+      `jsDelivr currency API responded with unexpected status ${response.status}.`
+    );
+  }
+
+  if (!payload.usd) {
+    throw new Error("jsDelivr currency API response did not include usd rates.");
+  }
+
+  const rates: Record<string, number> = {};
+  for (const currency of TOP_CURRENCIES) {
+    const rate = payload.usd[currency.toLowerCase()];
+    if (typeof rate !== "number" || Number.isNaN(rate)) {
+      throw new Error(`jsDelivr currency API missing rate for ${currency}.`);
+    }
+    rates[currency] = rate;
+  }
+
+  return {
+    rates,
+    updatedAt: payload.date,
+    provider: "fawazahmed0/currency-api",
+  };
+}
 
 addEntrypoint({
   key: "usd-conversions",
   description:
     "Fetch the latest USD conversion rates for five globally traded currencies.",
-  price: "0.002",
+  ...(paymentsEnabled ? { price: "0.001" } : {}),
   input: z.object({}),
   output: z.object({
     base: z.literal("USD"),
@@ -78,28 +185,9 @@ addEntrypoint({
     updatedAt: z.string(),
   }),
   async handler() {
-    const symbols = TOP_CURRENCIES.join(",");
-    const response = await fetch(
-      `https://api.exchangerate.host/latest?base=USD&symbols=${symbols}`
-    );
-
-    if (!response.ok) {
-      throw new Error(
-        `Failed to retrieve currency data (status ${response.status}).`
-      );
-    }
-
-    const payload = (await response.json()) as {
-      date?: string;
-      rates?: Record<string, number>;
-    };
-
-    if (!payload.rates) {
-      throw new Error("Currency response did not contain rate information.");
-    }
-
+    const { rates: providerRates, updatedAt, provider } = await fetchUsdRates();
     const rates = TOP_CURRENCIES.map((currency) => {
-      const rate = payload.rates?.[currency];
+      const rate = providerRates?.[currency];
       if (typeof rate !== "number" || Number.isNaN(rate)) {
         throw new Error(`Missing rate for ${currency}.`);
       }
@@ -112,11 +200,11 @@ addEntrypoint({
         base: "USD",
         rates,
         updatedAt:
-          typeof payload.date === "string"
-            ? payload.date
+          typeof updatedAt === "string"
+            ? updatedAt
             : new Date().toISOString(),
       },
-      model: "exchangerate.host",
+      model: provider,
     };
   },
 });

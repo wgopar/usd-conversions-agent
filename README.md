@@ -29,3 +29,7 @@ The dev command runs `bun` in watch mode, starts the HTTP server, and reloads wh
 - Wire up `@lucid-dreams/agent-kit` configuration and secrets (see `AGENTS.md` in the repo for details).
 - Copy `.env.example` to `.env` and fill in the values for your environment.
 - Deploy with your preferred Bun-compatible platform when you're ready.
+
+### Currency data
+
+The USD conversion entrypoint pulls live rates from `https://open.er-api.com/v6/latest/USD` and falls back to the public `fawazahmed0/currency-api` snapshot when the primary source is unavailable. Both sources are keyless, so no API credentials are required for local development.
