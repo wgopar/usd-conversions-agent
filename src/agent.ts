@@ -47,13 +47,6 @@ if (!axClient.isConfigured()) {
   );
 }
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-  "Access-Control-Allow-Headers":
-    "Authorization, Content-Type, X-Requested-With, Accept, Origin",
-};
-
 const { app, addEntrypoint } = createAgentApp(
   {
     name: "usd-conversions-agent",
@@ -71,23 +64,6 @@ const { app, addEntrypoint } = createAgentApp(
         payments: false,
       }
 );
-
-app.use(async (c, next) => {
-  if (c.req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 204,
-      headers: corsHeaders,
-    });
-  }
-
-  try {
-    await next();
-  } finally {
-    for (const [key, value] of Object.entries(corsHeaders)) {
-      c.res.headers.set(key, value);
-    }
-  }
-});
 
 const TOP_CURRENCIES = ["EUR", "CNY", "JPY", "GBP", "AUD"] as const;
 
