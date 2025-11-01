@@ -49,7 +49,7 @@ if (!axClient.isConfigured()) {
 
 const { app, addEntrypoint } = createAgentApp(
   {
-    name: "usd-conversions-agent",
+    name: "USD Currency Converter",
     version: "0.0.1",
     description:
       "Fetch the latest USD conversion rates for five globally traded currencies: EUR, CNY, JPY, GBP, and AUD.",
