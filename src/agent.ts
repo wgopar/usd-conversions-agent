@@ -5,7 +5,6 @@ import {
   AgentKitConfig,
 } from "@lucid-dreams/agent-kit";
 import { flow } from "@ax-llm/ax";
-import { cors } from "hono/cors";
 
 /**
  * This example shows how to combine `createAxLLMClient` with a small AxFlow
@@ -66,20 +65,20 @@ const { app, addEntrypoint } = createAgentApp(
       }
 );
 
-app.use(
-  "*",
-  cors({
-    origin: "*",
-    allowMethods: ["GET", "POST", "OPTIONS"],
-    allowHeaders: [
-      "Authorization",
-      "Content-Type",
-      "X-Requested-With",
-      "Accept",
-      "Origin",
-    ],
-  })
-);
+app.use(async (c, next) => {
+  c.res.headers.set("Access-Control-Allow-Origin", "*");
+  c.res.headers.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  c.res.headers.set(
+    "Access-Control-Allow-Headers",
+    "Authorization, Content-Type, X-Requested-With, Accept, Origin"
+  );
+
+  if (c.req.method === "OPTIONS") {
+    return c.text("", 204);
+  }
+
+  await next();
+});
 
 const TOP_CURRENCIES = ["EUR", "CNY", "JPY", "GBP", "AUD"] as const;
 
