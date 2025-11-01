@@ -66,7 +66,20 @@ const { app, addEntrypoint } = createAgentApp(
       }
 );
 
-app.use("*", cors());
+app.use(
+  "*",
+  cors({
+    origin: "*",
+    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowHeaders: [
+      "Authorization",
+      "Content-Type",
+      "X-Requested-With",
+      "Accept",
+      "Origin",
+    ],
+  })
+);
 
 const TOP_CURRENCIES = ["EUR", "CNY", "JPY", "GBP", "AUD"] as const;
 
