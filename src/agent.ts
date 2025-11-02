@@ -4,12 +4,12 @@ import {
   createAxLLMClient,
   AgentKitConfig,
 } from "@lucid-dreams/agent-kit";
-import { flow } from "@ax-llm/ax";
+import { ai } from "@ax-llm/ax";
 
 /**
- * This example shows how to combine `createAxLLMClient` with a small AxFlow
- * pipeline. The flow creates a short summary for a topic and then follows up
- * with a handful of ideas the caller could explore next.
+ * This agent combines live exchange-rate data with optional AxLLM summaries.
+ * Configure OPENAI_API_KEY (or compatible AxLLM env vars) to enable the
+ * market-summary entrypoint; set ENABLE_PAYMENTS=true to run through x402.
  *
  * Required environment variables:
  *   - OPENAI_API_KEY   (passed through to @ax-llm/ax)
@@ -29,7 +29,54 @@ const paymentsConfig: NonNullable<AgentKitConfig["payments"]> = {
 
 const paymentsEnabled = process.env.ENABLE_PAYMENTS === "true";
 
+const DEFAULT_AX_MODEL = "gpt-4o-mini" as const;
+
+type AxModelConfig = {
+  model: typeof DEFAULT_AX_MODEL;
+  stream: boolean;
+  temperature?: number;
+};
+
+const axApiUrl =
+  process.env.AX_API_URL ??
+  process.env.AXLLM_API_URL ??
+  process.env.OPENAI_API_URL;
+
+const axTemperatureValue =
+  process.env.AX_TEMPERATURE ??
+  process.env.AXLLM_TEMPERATURE ??
+  process.env.OPENAI_TEMPERATURE;
+
+const parsedAxTemperature =
+  axTemperatureValue && axTemperatureValue.trim().length > 0
+    ? Number(axTemperatureValue)
+    : undefined;
+
+const baseAxConfig: AxModelConfig = {
+  model: DEFAULT_AX_MODEL,
+  stream: false,
+};
+
+if (
+  parsedAxTemperature !== undefined &&
+  Number.isFinite(parsedAxTemperature)
+) {
+  baseAxConfig.temperature = parsedAxTemperature;
+}
+
+const directAxClient = paymentsEnabled
+  ? null
+  : createNonPaywalledAxClient(baseAxConfig, axApiUrl);
+
 const axClient = createAxLLMClient({
+  model: DEFAULT_AX_MODEL,
+  ...(directAxClient ? { clientFactory: () => directAxClient } : {}),
+  x402: {
+    model: DEFAULT_AX_MODEL,
+    ai: {
+      config: { ...baseAxConfig },
+    },
+  },
   logger: {
     warn(message: string, error?: unknown) {
       if (error) {
@@ -76,6 +123,25 @@ function mapRatesFromRecord(rateRecord: Record<string, number>) {
 
     return { currency, rate };
   });
+}
+
+function createNonPaywalledAxClient(
+  config: AxModelConfig,
+  apiUrl?: string
+): ReturnType<typeof ai> | null {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return null;
+  }
+
+  return ai(
+    {
+      name: "openai",
+      apiKey,
+      ...(apiUrl ? { apiURL: apiUrl } : {}),
+      config,
+    } as any
+  );
 }
 
 type RatesResult = {
