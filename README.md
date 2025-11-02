@@ -23,10 +23,9 @@ The dev command runs `bun` in watch mode, starts the HTTP server, and reloads wh
 - `bun run agent` – run the agent module directly (helpful for quick experiments).
 - `bunx tsc --noEmit` – type-check the project.
 
-### Agent entrypoints
+### Agent entrypoint
 
-- `usd-conversions` – returns the latest USD→EUR/CNY/JPY/GBP/AUD rates pulled from free public APIs.
-- `usd-market-summary` – generates a short FX brief with highlights using your configured AxLLM provider (`OPENAI_API_KEY` or compatible); falls back to the rate data above when summarising.
+- `usd-market-summary` – generates a short FX brief with highlights using your configured AxLLM provider (`OPENAI_API_KEY` or compatible); the summary includes live USD→EUR/CNY/JPY/GBP/AUD rates from free public sources.
 
 ### Next steps
 
@@ -37,4 +36,4 @@ The dev command runs `bun` in watch mode, starts the HTTP server, and reloads wh
 
 ### Currency data
 
-Live USD rates come from `https://open.er-api.com/v6/latest/USD`, with a fallback to the public `fawazahmed0/currency-api` snapshot when the primary source is unavailable. Both sources are keyless. The market-summary entrypoint simply layers an AxLLM-generated narrative on top of the same data.
+USD rates come from `https://open.er-api.com/v6/latest/USD`, with a fallback to the public `fawazahmed0/currency-api` snapshot when the primary source is unavailable. Both sources are keyless; the market-summary entrypoint layers its LLM narrative on top of this data.

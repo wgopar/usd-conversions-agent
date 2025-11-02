@@ -96,10 +96,10 @@ if (!axClient.isConfigured()) {
 
 const { app, addEntrypoint } = createAgentApp(
   {
-    name: "USD Currency Converter",
+    name: "usd-market-summary-agent",
     version: "0.0.1",
     description:
-      "Fetch the latest USD conversion rates for five globally traded currencies: EUR, CNY, JPY, GBP, and AUD.",
+      "Generate concise USD currency market summaries with live rates and LLM insights for currencies: EUR, CNY, JPY, GBP, and AUD.",
   },
   paymentsEnabled
     ? {
@@ -159,7 +159,7 @@ async function fetchUsdRates(): Promise<RatesResult> {
         ? primaryError.message
         : String(primaryError);
     console.warn(
-      `[usd-conversions] primary rates provider failed: ${primaryMessage}`
+      `[usd-market-summary] primary rates provider failed: ${primaryMessage}`
     );
 
     try {
@@ -244,40 +244,6 @@ async function fetchFromJsDelivr(): Promise<RatesResult> {
     provider: "fawazahmed0/currency-api",
   };
 }
-
-addEntrypoint({
-  key: "usd-conversions",
-  description:
-    "Fetch the latest USD conversion rates for five globally traded currencies.",
-  ...(paymentsEnabled ? { price: "0.001" } : {}),
-  input: z.object({}),
-  output: z.object({
-    base: z.literal("USD"),
-    rates: z.array(
-      z.object({
-        currency: z.string(),
-        rate: z.number(),
-      })
-    ),
-    updatedAt: z.string(),
-  }),
-  async handler() {
-    const { rates: providerRates, updatedAt, provider } = await fetchUsdRates();
-    const rates = mapRatesFromRecord(providerRates);
-
-    return {
-      output: {
-        base: "USD",
-        rates,
-        updatedAt:
-          typeof updatedAt === "string"
-            ? updatedAt
-            : new Date().toISOString(),
-      },
-      model: provider,
-    };
-  },
-});
 
 const TONE_OPTIONS = ["neutral", "optimistic", "cautious"] as const;
 
