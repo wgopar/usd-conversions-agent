@@ -276,7 +276,7 @@ addEntrypoint({
     "Generate a short market brief for USD conversion rates using an LLM. Supports: " +
     SUPPORTED_CURRENCIES_TEXT +
     ".",
-  ...(paymentsEnabled ? { price: "0.005" } : {}),
+  ...(paymentsEnabled ? { price: "0.01" } : {}),
   input: z.object({
     focus: z
       .string()
