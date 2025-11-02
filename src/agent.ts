@@ -67,6 +67,17 @@ const { app, addEntrypoint } = createAgentApp(
 
 const TOP_CURRENCIES = ["EUR", "CNY", "JPY", "GBP", "AUD"] as const;
 
+function mapRatesFromRecord(rateRecord: Record<string, number>) {
+  return TOP_CURRENCIES.map((currency) => {
+    const rate = rateRecord[currency];
+    if (typeof rate !== "number" || Number.isNaN(rate)) {
+      throw new Error(`Missing rate for ${currency}.`);
+    }
+
+    return { currency, rate };
+  });
+}
+
 type RatesResult = {
   rates: Record<string, number>;
   updatedAt?: string;
@@ -186,14 +197,7 @@ addEntrypoint({
   }),
   async handler() {
     const { rates: providerRates, updatedAt, provider } = await fetchUsdRates();
-    const rates = TOP_CURRENCIES.map((currency) => {
-      const rate = providerRates?.[currency];
-      if (typeof rate !== "number" || Number.isNaN(rate)) {
-        throw new Error(`Missing rate for ${currency}.`);
-      }
-
-      return { currency, rate };
-    });
+    const rates = mapRatesFromRecord(providerRates);
 
     return {
       output: {
@@ -205,6 +209,144 @@ addEntrypoint({
             : new Date().toISOString(),
       },
       model: provider,
+    };
+  },
+});
+
+const TONE_OPTIONS = ["neutral", "optimistic", "cautious"] as const;
+
+addEntrypoint({
+  key: "usd-market-summary",
+  description:
+    "Generate a short market brief for USD conversion rates using an LLM.",
+  ...(paymentsEnabled ? { price: "0.005" } : {}),
+  input: z.object({
+    focus: z
+      .string()
+      .max(240, "Focus must be 240 characters or fewer.")
+      .optional(),
+    tone: z.enum(TONE_OPTIONS).optional(),
+  }),
+  output: z.object({
+    base: z.literal("USD"),
+    updatedAt: z.string(),
+    summary: z.string(),
+    highlights: z.array(z.string()),
+    dataProvider: z.string(),
+    rates: z.array(
+      z.object({
+        currency: z.string(),
+        rate: z.number(),
+      })
+    ),
+  }),
+  async handler({ input }) {
+    const ai = axClient.ax;
+    if (!ai || !axClient.isConfigured()) {
+      throw new Error(
+        "LLM provider is not configured. Set OPENAI_API_KEY to enable market summaries."
+      );
+    }
+
+    const { rates: providerRates, updatedAt, provider } = await fetchUsdRates();
+    const rates = mapRatesFromRecord(providerRates);
+    const timestamp =
+      typeof updatedAt === "string"
+        ? updatedAt
+        : new Date().toISOString();
+
+    const focus = input?.focus?.trim();
+    const tone = input?.tone ?? "neutral";
+    const toneInstruction =
+      tone === "neutral"
+        ? "Keep the tone neutral and factual."
+        : `Adopt a ${tone} tone while staying factual.`;
+
+    const rateLines = rates
+      .map((entry) => `${entry.currency}: ${entry.rate.toFixed(4)}`)
+      .join("\n");
+
+    const userPrompt = [
+      `Latest USD conversion rates (base USD) as of ${timestamp}:`,
+      rateLines,
+      focus
+        ? `Caller focus: ${focus}`
+        : "Highlight notable moves and practical implications for a general audience.",
+      toneInstruction,
+      'Respond with JSON matching {"summary": string, "highlights": string[]} with no extra commentary.',
+    ].join("\n\n");
+
+    const response = await ai.chat({
+      chatPrompt: [
+        {
+          role: "system",
+          content:
+            "You are a financial analyst writing concise foreign exchange updates. Respond ONLY with JSON containing keys \"summary\" and \"highlights\".",
+        },
+        {
+          role: "user",
+          content: userPrompt,
+        },
+      ],
+    });
+
+    const primaryResult = Array.isArray(response.results)
+      ? response.results[0]
+      : undefined;
+    const rawContent =
+      typeof primaryResult?.content === "string"
+        ? primaryResult.content.trim()
+        : "";
+
+    if (!rawContent) {
+      throw new Error("LLM did not return any content.");
+    }
+
+    let summary = rawContent;
+    let highlights: string[] = [];
+
+    try {
+      const parsed = JSON.parse(rawContent) as {
+        summary?: unknown;
+        highlights?: unknown;
+      };
+      if (typeof parsed.summary === "string") {
+        summary = parsed.summary.trim();
+      }
+      if (Array.isArray(parsed.highlights)) {
+        highlights = parsed.highlights
+          .map((item: unknown) => String(item).trim())
+          .filter((item: string) => item.length > 0);
+      }
+    } catch {
+      const lines = rawContent
+        .split(/\n+/)
+        .map((line: string) => line.replace(/^[\-\*\d\.\s]+/, "").trim())
+        .filter((line: string) => line.length > 0);
+      if (lines.length > 0) {
+        summary = lines[0];
+        highlights = lines.slice(1, 4);
+      }
+    }
+
+    if (highlights.length === 0) {
+      highlights = rates
+        .slice(0, 3)
+        .map(
+          (entry) => `USD/${entry.currency} trades near ${entry.rate.toFixed(4)}.`
+        );
+    }
+
+    return {
+      output: {
+        base: "USD",
+        updatedAt: timestamp,
+        summary,
+        highlights,
+        dataProvider: provider,
+        rates,
+      },
+      model: ai.getName() ?? provider,
     };
   },
 });
