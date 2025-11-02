@@ -96,7 +96,7 @@ if (!axClient.isConfigured()) {
 
 const { app, addEntrypoint } = createAgentApp(
   {
-    name: "usd-market-summary-agent",
+    name: "usd-market-summary",
     version: "0.0.1",
     description:
       "Generate concise USD currency market summaries with live rates and LLM insights across the top 20 traded currencies (EUR, CNY, JPY, GBP, AUD, CAD, CHF, HKD, SGD, INR, KRW, NZD, SEK, NOK, MXN, RUB, TRY, BRL, ZAR, SAR).",
