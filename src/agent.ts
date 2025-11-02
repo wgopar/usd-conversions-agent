@@ -99,7 +99,7 @@ const { app, addEntrypoint } = createAgentApp(
     name: "usd-market-summary-agent",
     version: "0.0.1",
     description:
-      "Generate concise USD currency market summaries with live rates and LLM insights for currencies: EUR, CNY, JPY, GBP, and AUD.",
+      "Generate concise USD currency market summaries with live rates and LLM insights across the top 20 traded currencies.",
   },
   paymentsEnabled
     ? {
@@ -112,7 +112,28 @@ const { app, addEntrypoint } = createAgentApp(
       }
 );
 
-const TOP_CURRENCIES = ["EUR", "CNY", "JPY", "GBP", "AUD"] as const;
+const TOP_CURRENCIES = [
+  "EUR",
+  "CNY",
+  "JPY",
+  "GBP",
+  "AUD",
+  "CAD",
+  "CHF",
+  "HKD",
+  "SGD",
+  "INR",
+  "KRW",
+  "NZD",
+  "SEK",
+  "NOK",
+  "MXN",
+  "RUB",
+  "TRY",
+  "BRL",
+  "ZAR",
+  "SAR",
+] as const;
 
 function mapRatesFromRecord(rateRecord: Record<string, number>) {
   return TOP_CURRENCIES.map((currency) => {

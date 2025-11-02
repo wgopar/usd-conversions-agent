@@ -36,4 +36,4 @@ The dev command runs `bun` in watch mode, starts the HTTP server, and reloads wh
 
 ### Currency data
 
-USD rates come from `https://open.er-api.com/v6/latest/USD`, with a fallback to the public `fawazahmed0/currency-api` snapshot when the primary source is unavailable. Both sources are keyless; the market-summary entrypoint layers its LLM narrative on top of this data.
+USD rates come from `https://open.er-api.com/v6/latest/USD`, with a fallback to the public `fawazahmed0/currency-api` snapshot when the primary source is unavailable. Both sources are keyless; the market-summary entrypoint layers its LLM narrative on top of this data across the top 20 traded currencies.
