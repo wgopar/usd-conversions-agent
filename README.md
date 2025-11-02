@@ -25,7 +25,7 @@ The dev command runs `bun` in watch mode, starts the HTTP server, and reloads wh
 
 ### Agent entrypoint
 
-- `usd-market-summary` – generates a short FX brief with highlights using your configured AxLLM provider (`OPENAI_API_KEY` or compatible); the summary includes live USD→EUR/CNY/JPY/GBP/AUD rates from free public sources.
+- `usd-market-summary` – generates a short FX brief with highlights using your configured AxLLM provider (`OPENAI_API_KEY` or compatible); the summary includes live USD rates for the top 20 traded currencies (EUR, CNY, JPY, GBP, AUD, CAD, CHF, HKD, SGD, INR, KRW, NZD, SEK, NOK, MXN, RUB, TRY, BRL, ZAR, SAR) from free public sources.
 
 ### Next steps
 

@@ -99,7 +99,7 @@ const { app, addEntrypoint } = createAgentApp(
     name: "usd-market-summary-agent",
     version: "0.0.1",
     description:
-      "Generate concise USD currency market summaries with live rates and LLM insights across the top 20 traded currencies.",
+      "Generate concise USD currency market summaries with live rates and LLM insights across the top 20 traded currencies (EUR, CNY, JPY, GBP, AUD, CAD, CHF, HKD, SGD, INR, KRW, NZD, SEK, NOK, MXN, RUB, TRY, BRL, ZAR, SAR).",
   },
   paymentsEnabled
     ? {
@@ -134,6 +134,8 @@ const TOP_CURRENCIES = [
   "ZAR",
   "SAR",
 ] as const;
+
+const SUPPORTED_CURRENCIES_TEXT = TOP_CURRENCIES.join(", ");
 
 function mapRatesFromRecord(rateRecord: Record<string, number>) {
   return TOP_CURRENCIES.map((currency) => {
@@ -271,7 +273,9 @@ const TONE_OPTIONS = ["neutral", "optimistic", "cautious"] as const;
 addEntrypoint({
   key: "usd-market-summary",
   description:
-    "Generate a short market brief for USD conversion rates using an LLM.",
+    "Generate a short market brief for USD conversion rates using an LLM. Supports: " +
+    SUPPORTED_CURRENCIES_TEXT +
+    ".",
   ...(paymentsEnabled ? { price: "0.005" } : {}),
   input: z.object({
     focus: z
@@ -286,6 +290,7 @@ addEntrypoint({
     summary: z.string(),
     highlights: z.array(z.string()),
     dataProvider: z.string(),
+    currencies: z.array(z.string()),
     rates: z.array(
       z.object({
         currency: z.string(),
@@ -397,6 +402,7 @@ addEntrypoint({
         summary,
         highlights,
         dataProvider: provider,
+        currencies: [...TOP_CURRENCIES],
         rates,
       },
       model: ai.getName() ?? provider,
